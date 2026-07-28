@@ -6,8 +6,8 @@ metadata:
 spec:
   description: Harbor Orders platform applications
   sourceRepos:
-    - git@github.com:Mustafa12z/gke-microservices.git
-    - https://github.com/Mustafa12z/gke-microservices.git
+    - git@github.com:Mustafa12z/harbor-orders.git
+    - https://github.com/Mustafa12z/harbor-orders.git
   destinations:
     - namespace: orders
       server: https://kubernetes.default.svc

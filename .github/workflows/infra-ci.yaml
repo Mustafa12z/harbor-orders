@@ -163,27 +163,7 @@ jobs:
           environment: dev
           command: apply
 
-      # Shared AR is created by the dev root. Push :bootstrap images before Argo
-      # syncs overlays that still pin newTag: bootstrap.
-      - name: Auth as deployer (image push)
-        uses: ./.github/actions/setup-gcp
-        with:
-          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
-          service_account: ${{ vars.CI_DEPLOYER_SA }}
-      - name: Build and push bootstrap images
-        uses: ./.github/actions/push-service-images
-        with:
-          project_id: ${{ vars.TF_VAR_project_id }}
-          region: ${{ env.REGION }}
-          image_tag: bootstrap
-
-      # ci-deployer is only roles/container.developer — Argo install needs RBAC
-      # create (roles/clusterroles). Switch back to the apply SA for kube admin.
-      - name: Auth as apply SA (cluster admin for Argo)
-        uses: ./.github/actions/setup-gcp
-        with:
-          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
-          service_account: ${{ vars.CI_TF_APPLY_SA }}
+      # Apply SA has cluster-admin; Argo bootstrap needs RBAC create.
       - name: Get cluster credentials
         uses: ./.github/actions/gke-credentials
         with:

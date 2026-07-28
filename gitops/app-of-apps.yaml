@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:Mustafa12z/gke-microservices.git
+    repoURL: git@github.com:Mustafa12z/harbor-orders.git
     targetRevision: HEAD
     path: gitops
     directory:

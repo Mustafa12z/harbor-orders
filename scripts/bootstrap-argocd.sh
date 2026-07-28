@@ -21,8 +21,8 @@ case "$ENV" in
 esac
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPO_SSH_URL="${ARGOCD_REPO_SSH_URL:-git@github.com:Mustafa12z/gke-microservices.git}"
-REPO_HTTPS_URL="${ARGOCD_REPO_HTTPS_URL:-https://github.com/Mustafa12z/gke-microservices.git}"
+REPO_SSH_URL="${ARGOCD_REPO_SSH_URL:-git@github.com:Mustafa12z/harbor-orders.git}"
+REPO_HTTPS_URL="${ARGOCD_REPO_HTTPS_URL:-https://github.com/Mustafa12z/harbor-orders.git}"
 
 echo "Creating argocd namespace..."
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
@@ -55,22 +55,22 @@ kubectl -n argocd rollout status statefulset/argocd-application-controller --tim
 if [ -n "${ARGOCD_REPO_SSH_KEY:-}" ]; then
   echo "Configuring Argo CD repository credentials (SSH deploy key) for ${REPO_SSH_URL}..."
   # shellcheck disable=SC2016
-  kubectl -n argocd create secret generic repo-gke-microservices \
+  kubectl -n argocd create secret generic repo-harbor-orders \
     --from-literal=type=git \
     --from-literal=url="${REPO_SSH_URL}" \
     --from-file=sshPrivateKey=<(printf '%s\n' "$ARGOCD_REPO_SSH_KEY") \
     --dry-run=client -o yaml | kubectl apply -f -
-  kubectl -n argocd label secret repo-gke-microservices \
+  kubectl -n argocd label secret repo-harbor-orders \
     argocd.argoproj.io/secret-type=repository --overwrite
 elif TOKEN="${ARGOCD_REPO_TOKEN:-${GH_TOKEN:-}}"; [ -n "$TOKEN" ]; then
   echo "Configuring Argo CD repository credentials (HTTPS token) for ${REPO_HTTPS_URL}..."
-  kubectl -n argocd create secret generic repo-gke-microservices \
+  kubectl -n argocd create secret generic repo-harbor-orders \
     --from-literal=type=git \
     --from-literal=url="${REPO_HTTPS_URL}" \
     --from-literal=username=git \
     --from-literal=password="${TOKEN}" \
     --dry-run=client -o yaml | kubectl apply -f -
-  kubectl -n argocd label secret repo-gke-microservices \
+  kubectl -n argocd label secret repo-harbor-orders \
     argocd.argoproj.io/secret-type=repository --overwrite
 else
   echo "No ARGOCD_REPO_SSH_KEY/ARGOCD_REPO_TOKEN/GH_TOKEN set; assuming public repo access."
