@@ -21,23 +21,23 @@ patches:
 # by infra-ci (after Terraform, before Argo). See docs/versioning.md.
 images:
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/api-gateway
-    digest: sha256:509a13b0d01ca5d75a60126177d84e80157fbd642b754ddfb963a7e129edc812
+    digest: sha256:379d9978827e67778b3550decb5f9ebc3a4153966d49c55c769a8aa4ab668db6
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/order-service
-    digest: sha256:e4ee5985441ef47d3ce098a593b9a6e722c34a9b3939b038bf816fb9a2c992b1
+    digest: sha256:986e255f97ab8cc531a5f1d8a0be9a99ce5c9066974f72b7f9761861e1a64500
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/inventory-service
-    digest: sha256:62ff969638562a5242d7f13f29a55c308519e16f48499a175fed009aba76be38
+    digest: sha256:e86261d6d8bdb4aabef268a715eca9f0f857165cc970fc73cd33a3d4890491aa
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/payment-service
-    digest: sha256:bf56187271556ade95c10c8158afc759870e86e4b83f6343b0124f02b185e799
+    digest: sha256:129b005ceb414f63cf91395d7cdd3e9fe24c80c6d5ea82a3d75fc57e67f7aee4
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/notification-service
-    digest: sha256:cbd763ce743759ec77c8fb2008bebe26cdc94794565213ea67492d0828c46ff7
+    digest: sha256:063311930a054c62b0456c6a6d0fd84dea70725d34390c586eb3a8b12ab4056b
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/shipping-service
-    digest: sha256:da3f720e49de1a00ee8cca4846ad1788696ae4978f1f8db77c4527df6980504a
+    digest: sha256:0cf56499ac1b66f156510d27feebc939b5506743134675ece37966245ab9aaea
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/worker
-    digest: sha256:d34c69573a3dd4ac4854bf9d16dbf0f9d3a9e98763740c90d475c3a5ef02a165
+    digest: sha256:15f37930a8b70cd749d6575fa3b58a7ca86c711b26ffa14253080d141961cf04
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/scheduler
-    digest: sha256:99fee304cb2e27dd2017c63df2f1a4e2d5b00941ccc499aed011b6af69a56f85
+    digest: sha256:d26aeb1151bb3dae0a2cc1f813f34292de516f761dfec768b10d17e946501025
   - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/dashboard-api
-    digest: sha256:2c6c51076c85b4716a24ac0d90a17bcaec17aa22a8be3dd07708b2aaf2386bb6
+    digest: sha256:09f66e58ad3534f795c05fe24835ce575298bc39b74023531d2f4e36f5ad6127
 
 replacements:
   - source:
