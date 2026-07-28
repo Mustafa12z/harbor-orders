@@ -49,6 +49,38 @@ for crd in applications.argoproj.io applicationsets.argoproj.io appprojects.argo
   kubectl annotate crd "$crd" kubectl.kubernetes.io/last-applied-configuration- --overwrite >/dev/null 2>&1 || true
 done
 
+# Manifest install uses different immutable selectors than the Helm chart.
+# Wipe leftovers whenever there is no healthy Helm release yet.
+ARGO_STATUS="$(helm status argocd --namespace argocd -o json 2>/dev/null | jq -r '.info.status // empty' || true)"
+if [ "$ARGO_STATUS" != "deployed" ]; then
+  if kubectl get namespace argocd >/dev/null 2>&1 && \
+     kubectl -n argocd get deploy,statefulset 2>/dev/null | grep -q argocd; then
+    echo "Removing previous Argo CD install (status=${ARGO_STATUS:-none}; selectors incompatible with Helm)..."
+    for kind in applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io; do
+      kubectl -n argocd get "$kind" -o name 2>/dev/null | while read -r res; do
+        kubectl -n argocd patch "$res" --type=merge -p '{"metadata":{"finalizers":[]}}' >/dev/null 2>&1 || true
+      done
+    done
+    helm uninstall argocd --namespace argocd --wait --timeout 2m >/dev/null 2>&1 || true
+    kubectl delete namespace argocd --wait=true --timeout=180s 2>/dev/null || true
+    # If the namespace is stuck terminating, drop its finalizers.
+    if kubectl get namespace argocd >/dev/null 2>&1; then
+      kubectl get namespace argocd -o json \
+        | jq '.spec.finalizers=[]' \
+        | kubectl replace --raw "/api/v1/namespaces/argocd/finalize" -f - >/dev/null 2>&1 || true
+      for _ in $(seq 1 30); do
+        kubectl get namespace argocd >/dev/null 2>&1 || break
+        sleep 2
+      done
+    fi
+    for name in argocd-application-controller argocd-applicationset-controller argocd-server; do
+      kubectl delete clusterrole "$name" --ignore-not-found >/dev/null 2>&1 || true
+      kubectl delete clusterrolebinding "$name" --ignore-not-found >/dev/null 2>&1 || true
+    done
+    kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+  fi
+fi
+
 echo "Installing Argo CD via Helm (chart ${ARGOCD_CHART_VERSION})..."
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
 helm repo update argo >/dev/null
