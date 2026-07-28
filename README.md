@@ -158,6 +158,10 @@ make up ENV=$ENV           # plan-gated Terraform apply
 make kubeconfig ENV=$ENV
 # Argo CD: infra-ci bootstraps per env after apply; local:
 #   scripts/bootstrap-argocd.sh $ENV
+# UI: https://argocd.dev.order.mustafamirreh.com (Google login)
+# Seed GSM before first bootstrap:
+#   printf '%s' "$DEPLOY_KEY" | gcloud secrets versions add orders-argocd-repo-ssh-key --data-file=-
+#   printf '%s' '{"clientID":"...","clientSecret":"..."}' | gcloud secrets versions add orders-argocd-google-oauth --data-file=-
 # Ongoing: merge to main → app-ci → Argo CD reconciles k8s/overlays/$ENV
 # Local convenience (skips CI supply chain): make build-push && make deploy
 ```

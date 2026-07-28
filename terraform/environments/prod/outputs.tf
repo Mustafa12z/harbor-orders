@@ -89,6 +89,26 @@ output "ingress_ip_name" {
   value = try(module.ingress_endpoint[0].ingress_ip_name, "")
 }
 
+output "argocd_domain_name" {
+  value = local.argocd_domain_name
+}
+
+output "argocd_ingress_ip" {
+  value = try(module.argocd_ingress_endpoint[0].ingress_ip, "")
+}
+
+output "argocd_ingress_ip_name" {
+  value = try(module.argocd_ingress_endpoint[0].ingress_ip_name, "")
+}
+
+output "argocd_repo_ssh_secret_id" {
+  value = google_secret_manager_secret.argocd_repo_ssh.secret_id
+}
+
+output "argocd_google_oauth_secret_id" {
+  value = google_secret_manager_secret.argocd_google_oauth.secret_id
+}
+
 output "grafana_secret_id" {
   value = try(module.secret_grafana[0].secret_id, "")
 }

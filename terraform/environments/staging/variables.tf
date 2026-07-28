@@ -62,6 +62,12 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "argocd_domain_name" {
+  type        = string
+  description = "Public hostname for Argo CD UI Ingress. Empty derives argocd.<domain_name> when domain_name is set."
+  default     = ""
+}
+
 variable "route53_zone_id" {
   type        = string
   description = "Route 53 hosted zone ID for domain_name (preferred)."

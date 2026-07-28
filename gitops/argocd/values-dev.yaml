@@ -1,0 +1,13 @@
+configs:
+  cm:
+    url: https://argocd.dev.order.mustafamirreh.com
+    dex.config: |
+      connectors:
+        - type: oidc
+          id: google
+          name: Google
+          config:
+            issuer: https://accounts.google.com
+            clientID: $dex.google.clientID
+            clientSecret: $dex.google.clientSecret
+            redirectURI: https://argocd.dev.order.mustafamirreh.com/api/dex/callback

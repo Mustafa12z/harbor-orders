@@ -1,0 +1,46 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: argocd-cert
+  namespace: argocd
+spec:
+  domains:
+    - argocd.dev.order.mustafamirreh.com
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  healthCheck:
+    checkIntervalSec: 30
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    type: HTTP
+    requestPath: /healthz
+    port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.allow-http: "true"
+    kubernetes.io/ingress.global-static-ip-name: "gke-orders-argocd-ingress"
+    networking.gke.io/managed-certificates: "argocd-cert"
+spec:
+  rules:
+    - host: argocd.dev.order.mustafamirreh.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

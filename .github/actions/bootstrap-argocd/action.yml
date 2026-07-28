@@ -1,5 +1,5 @@
 name: bootstrap-argocd
-description: Install Argo CD and apply gitops Application for one environment
+description: Install Argo CD (Helm), ESO-synced secrets, Ingress, and env Application
 inputs:
   environment:
     description: Environment name (dev, staging, prod)
@@ -7,8 +7,12 @@ inputs:
 runs:
   using: composite
   steps:
-    - shell: bash
+    - name: Setup Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: v3.16.4
+    - name: Bootstrap Argo CD
+      shell: bash
       env:
         ENV: ${{ inputs.environment }}
-        # Callers must pass ARGOCD_REPO_SSH_KEY / ARGOCD_REPO_TOKEN / GH_TOKEN via job/step env.
       run: bash "${GITHUB_WORKSPACE}/scripts/bootstrap-argocd.sh" "${ENV}"

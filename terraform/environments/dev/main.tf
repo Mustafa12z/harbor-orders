@@ -221,6 +221,67 @@ module "ingress_endpoint" {
   route53_zone_name = var.route53_zone_name
 }
 
+locals {
+  argocd_domain_name = var.argocd_domain_name != "" ? var.argocd_domain_name : (
+    var.domain_name != "" ? "argocd.${var.domain_name}" : ""
+  )
+}
+
+module "argocd_ingress_endpoint" {
+  count  = local.argocd_domain_name != "" ? 1 : 0
+  source = "../../modules/ingress_endpoint"
+
+  project_id        = var.project_id
+  address_name      = "${local.name_prefix}-argocd-ingress"
+  domain_name       = local.argocd_domain_name
+  route53_zone_id   = var.route53_zone_id
+  route53_zone_name = var.route53_zone_name
+}
+
+# Extra WI binding so ESO in the argocd namespace can read GSM (same GSA as orders/).
+resource "google_service_account_iam_member" "wi_eso_argocd" {
+  service_account_id = module.wi_eso.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[argocd/${var.eso_k8s_service_account}]"
+}
+
+# Shell secrets: versions are seeded out-of-band (deploy key / Google OAuth client).
+resource "google_secret_manager_secret" "argocd_repo_ssh" {
+  project   = var.project_id
+  secret_id = "orders${var.name_suffix}-argocd-repo-ssh-key"
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "argocd_repo_ssh_eso" {
+  for_each = local.eso_accessor_members
+
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.argocd_repo_ssh.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = each.value
+}
+
+resource "google_secret_manager_secret" "argocd_google_oauth" {
+  project   = var.project_id
+  secret_id = "orders${var.name_suffix}-argocd-google-oauth"
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "argocd_google_oauth_eso" {
+  for_each = local.eso_accessor_members
+
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.argocd_google_oauth.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = each.value
+}
+
 module "observability_gcp" {
   source = "../../modules/observability_gcp"
 

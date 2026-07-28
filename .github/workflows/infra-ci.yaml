@@ -174,8 +174,7 @@ jobs:
       - name: Bootstrap Argo CD
         uses: ./.github/actions/bootstrap-argocd
         env:
+          # Fallback if GSM shell for the deploy key is not seeded yet.
           ARGOCD_REPO_SSH_KEY: ${{ secrets.ARGOCD_REPO_SSH_KEY }}
-          ARGOCD_REPO_TOKEN: ${{ secrets.ARGOCD_REPO_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
         with:
           environment: dev

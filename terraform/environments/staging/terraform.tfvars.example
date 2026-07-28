@@ -6,6 +6,7 @@ k8s_namespace = "orders-staging"
 
 # Public hostname (Route 53 A record + ManagedCertificate). Leave empty to skip.
 # domain_name       = "staging.order.mustafamirreh.com"
+# argocd_domain_name = "argocd.staging.order.mustafamirreh.com"  # default: argocd.<domain_name>
 # route53_zone_id   = "Z07782661B5WKHOHAEPWD"
 # route53_zone_name = "mustafamirreh.com"  # used if zone id omitted
 
