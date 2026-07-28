@@ -6,8 +6,11 @@ metadata:
     kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.allow-http: "true"
     kubernetes.io/ingress.global-static-ip-name: "gke-orders-ingress"
-    networking.gke.io/managed-certificates: "orders-cert"
 spec:
+  tls:
+    - secretName: orders-tls
+      hosts:
+        - dev.order.mustafamirreh.com
   rules:
     - host: dev.order.mustafamirreh.com
       http:

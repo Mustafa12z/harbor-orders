@@ -109,6 +109,10 @@ output "argocd_google_oauth_secret_id" {
   value = google_secret_manager_secret.argocd_google_oauth.secret_id
 }
 
+output "cert_manager_route53_secret_id" {
+  value = try(module.cert_manager_route53[0].gsm_secret_id, "")
+}
+
 output "grafana_secret_id" {
   value = try(module.secret_grafana[0].secret_id, "")
 }

@@ -245,6 +245,26 @@ resource "google_service_account_iam_member" "wi_eso_argocd" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[argocd/${var.eso_k8s_service_account}]"
 }
 
+# ESO in cert-manager namespace (Route53 DNS-01 credentials for ACME).
+resource "google_service_account_iam_member" "wi_eso_cert_manager" {
+  service_account_id = module.wi_eso.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[cert-manager/${var.eso_k8s_service_account}]"
+}
+
+module "cert_manager_route53" {
+  count  = var.domain_name != "" && (var.route53_zone_id != "" || var.route53_zone_name != "") ? 1 : 0
+  source = "../../modules/cert_manager_route53"
+
+  project_id       = var.project_id
+  environment      = var.cluster_name
+  iam_user_name    = "harbor-orders${var.name_suffix}-cert-manager-r53"
+  route53_zone_id  = var.route53_zone_id != "" ? var.route53_zone_id : module.ingress_endpoint[0].route53_zone_id
+  gsm_secret_id    = "orders${var.name_suffix}-cert-manager-route53"
+  aws_region       = var.aws_region
+  accessor_members = local.eso_accessor_members
+}
+
 # Shell secrets: versions are seeded out-of-band (deploy key / Google OAuth client).
 resource "google_secret_manager_secret" "argocd_repo_ssh" {
   project   = var.project_id

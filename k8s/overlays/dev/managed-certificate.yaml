@@ -2,6 +2,10 @@ apiVersion: networking.gke.io/v1
 kind: ManagedCertificate
 metadata:
   name: orders-cert
+  annotations:
+    # Cert stays "Provisioning" for a long time; keeping it in wave 0 blocks
+    # Rollouts/Deployments (wave 2) from ever applying. Deploy workloads first.
+    argocd.argoproj.io/sync-wave: "10"
 spec:
   domains:
     - dev.order.mustafamirreh.com

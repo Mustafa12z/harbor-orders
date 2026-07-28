@@ -5,7 +5,7 @@ resources:
   - env-value.yaml
   - ../../base
   - ingress.yaml
-  - managed-certificate.yaml
+  - certificate.yaml
   - ../../base/observability
   - ../../base/externalsecrets
   - ../../base/hooks

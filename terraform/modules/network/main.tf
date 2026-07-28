@@ -52,6 +52,29 @@ resource "google_compute_firewall" "allow_internal" {
   source_ranges = [var.subnet_cidr, var.pods_cidr, var.services_cidr]
 }
 
+# GCE Ingress / container-native LB health checks (NEG backends).
+# Without this, api-gateway can stay UNHEALTHY and /api/* returns 502.
+resource "google_compute_firewall" "allow_lb_health_checks" {
+  project = var.project_id
+  name    = "${var.name}-allow-hc"
+  network = google_compute_network.vpc.name
+
+  direction = "INGRESS"
+  priority  = 1000
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8080", "8086"]
+  }
+
+  source_ranges = [
+    "35.191.0.0/16",
+    "130.211.0.0/22",
+  ]
+
+  description = "GCE Ingress health checks for orders NEGs"
+}
+
 # Private Autopilot nodes need Cloud NAT for egress to third-party endpoints
 # (e.g. Grafana Cloud OTLP). Google APIs work via Private Google Access alone.
 resource "google_compute_router" "nat" {
