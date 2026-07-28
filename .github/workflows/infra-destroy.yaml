@@ -1,0 +1,134 @@
+name: infra-destroy
+
+# Manual teardown mirroring infra-ci apply: Kubernetes cleanup (Ingress/NEGs),
+# then terraform destroy. Destroy order is prod → staging → dev so the shared
+# Artifact Registry (owned by the project-shared root, usually dev) goes last.
+#
+# Must run from main — GCP WIF and AWS Route 53 OIDC trust are bound to
+# refs/heads/main (see docs/ci-oidc-bootstrap.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment to destroy (all = prod, then staging, then dev)
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+          - all
+        required: true
+      confirm:
+        description: Type the same value as target to confirm (e.g. prod or all)
+        type: string
+        required: true
+
+concurrency:
+  group: infra-destroy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_VERSION: "1.9.8"
+  REGION: europe-west2
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.resolve.outputs.envs }}
+    steps:
+      - name: Confirm intent and branch
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "infra-destroy must run from main (OIDC trust is refs/heads/main-only)."
+            echo "Current ref: ${{ github.ref }}"
+            exit 1
+          fi
+          if [ "${{ inputs.confirm }}" != "${{ inputs.target }}" ]; then
+            echo "confirm must exactly match target ('${{ inputs.target }}')."
+            exit 1
+          fi
+      - id: resolve
+        name: Resolve destroy order
+        run: |
+          set -euo pipefail
+          case "${{ inputs.target }}" in
+            all) envs='["prod","staging","dev"]' ;;
+            prod|staging|dev) envs='["${{ inputs.target }}"]' ;;
+            *) echo "unknown target"; exit 1 ;;
+          esac
+          echo "envs=${envs}" >> "$GITHUB_OUTPUT"
+          echo "Will destroy: ${envs}"
+
+  destroy:
+    needs: [guard]
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        env: ${{ fromJson(needs.guard.outputs.envs) }}
+    environment: ${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: ./.github/actions/setup-gcp
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CI_TF_APPLY_SA }}
+          aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
+
+      - name: Terraform init
+        uses: ./.github/actions/terraform-env
+        with:
+          environment: ${{ matrix.env }}
+          command: init
+
+      - name: Install GKE auth plugin
+        run: gcloud components install gke-gcloud-auth-plugin --quiet || true
+
+      # Same sequence as `make down`: release Ingress/NEGs while the cluster
+      # still exists, then terraform destroy. Namespace comes from the env root
+      # output (orders / orders-staging / orders-prod) so all three envs work.
+      - name: Cleanup Kubernetes (Ingress / NEGs / firewall)
+        env:
+          ENV: ${{ matrix.env }}
+          TF_DIR: terraform/environments/${{ matrix.env }}
+        run: |
+          set -euo pipefail
+          if ns=$(terraform -chdir="$TF_DIR" output -raw k8s_namespace 2>/dev/null); then
+            export NAMESPACE="$ns"
+          elif [ "$ENV" = "dev" ]; then
+            export NAMESPACE=orders
+          else
+            export NAMESPACE="orders-${ENV}"
+          fi
+          echo "Cleaning namespace ${NAMESPACE} in ${ENV}"
+          bash scripts/cleanup-k8s.sh
+
+      # GLBC often recreates k8s-fw-l7-* during cluster delete *after* the
+      # pre-destroy cleanup sweep; terraform-env destroy retries with another sweep.
+      - name: Terraform destroy
+        uses: ./.github/actions/terraform-env
+        env:
+          ENV: ${{ matrix.env }}
+          TF_DIR: terraform/environments/${{ matrix.env }}
+          TF_VAR_project_id: ${{ vars.TF_VAR_project_id }}
+          TF_VAR_domain_name: ${{ vars.TF_VAR_domain_name }}
+          TF_VAR_route53_zone_id: ${{ vars.TF_VAR_route53_zone_id }}
+          TF_VAR_alert_email: ${{ vars.TF_VAR_alert_email }}
+          TF_VAR_grafana_otlp_endpoint: ${{ secrets.TF_VAR_grafana_otlp_endpoint }}
+          TF_VAR_grafana_instance_id: ${{ vars.TF_VAR_grafana_instance_id }}
+          TF_VAR_grafana_api_token: ${{ secrets.TF_VAR_grafana_api_token }}
+        with:
+          environment: ${{ matrix.env }}
+          command: destroy

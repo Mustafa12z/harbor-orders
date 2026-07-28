@@ -1,0 +1,108 @@
+name: terraform-env
+description: Init and run plan, apply, or destroy for a terraform/environments/<env> root
+inputs:
+  environment:
+    description: Environment name (dev, staging, prod)
+    required: true
+  command:
+    description: Terraform command — plan, apply, destroy, or init
+    required: true
+  backend_bucket:
+    description: GCS state bucket
+    required: false
+    default: muzzy-gke
+  working_directory:
+    description: Override working directory (defaults to terraform/environments/<env>)
+    required: false
+    default: ""
+  detailed_exitcode:
+    description: For plan — use -detailed-exitcode (drift detection)
+    required: false
+    default: "false"
+  max_destroy_attempts:
+    description: For destroy — retry count after orphan firewall sweep
+    required: false
+    default: "3"
+outputs:
+  cluster:
+    description: Cluster name (apply only)
+    value: ${{ steps.run.outputs.cluster }}
+  location:
+    description: Cluster location (apply only)
+    value: ${{ steps.run.outputs.location }}
+  plan_exit:
+    description: Plan exit code (0/1/2)
+    value: ${{ steps.run.outputs.plan_exit }}
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        ENV: ${{ inputs.environment }}
+        COMMAND: ${{ inputs.command }}
+        BACKEND_BUCKET: ${{ inputs.backend_bucket }}
+        DETAILED_EXITCODE: ${{ inputs.detailed_exitcode }}
+        MAX_DESTROY_ATTEMPTS: ${{ inputs.max_destroy_attempts }}
+        WORKING_DIRECTORY: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
+        if [ -n "${WORKING_DIRECTORY}" ]; then
+          TF_DIR="${WORKING_DIRECTORY}"
+        else
+          TF_DIR="${GITHUB_WORKSPACE}/terraform/environments/${ENV}"
+        fi
+        cd "${TF_DIR}"
+        terraform init -input=false \
+          -backend-config="bucket=${BACKEND_BUCKET}" \
+          -backend-config="prefix=env/${ENV}"
+
+        case "${COMMAND}" in
+          init)
+            echo "Terraform init complete for ${ENV}"
+            ;;
+          plan)
+            terraform validate
+            set +e
+            if [ "${DETAILED_EXITCODE}" = "true" ]; then
+              terraform plan -input=false -detailed-exitcode -no-color -out=tfplan 2>&1 | tee plan.txt
+            else
+              terraform plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+            fi
+            code=${PIPESTATUS[0]}
+            set -e
+            echo "plan_exit=${code}" >> "$GITHUB_OUTPUT"
+            if [ "${DETAILED_EXITCODE}" = "true" ] && [ "${code}" -eq 1 ]; then
+              exit 1
+            fi
+            # Soft-exit for PR plans (comment step still runs); hard-fail only for detailed drift errors above.
+            exit 0
+            ;;
+          apply)
+            terraform apply -input=false -auto-approve
+            echo "cluster=$(terraform output -raw cluster_name)" >> "$GITHUB_OUTPUT"
+            echo "location=$(terraform output -raw cluster_location)" >> "$GITHUB_OUTPUT"
+            ;;
+          destroy)
+            attempt=1
+            max="${MAX_DESTROY_ATTEMPTS}"
+            while true; do
+              if terraform destroy -input=false -auto-approve; then
+                exit 0
+              fi
+              if [ "${attempt}" -ge "${max}" ]; then
+                echo "terraform destroy failed after ${max} attempts"
+                exit 1
+              fi
+              echo "Destroy failed (attempt ${attempt}/${max}); sweeping orphan GCE LB/NEGs/firewalls and retrying..."
+              ENV="${ENV}" TF_DIR="${TF_DIR}" FIREWALL_ONLY=1 \
+                bash "${GITHUB_WORKSPACE}/scripts/cleanup-k8s.sh"
+              attempt=$((attempt + 1))
+              sleep 15
+            done
+            ;;
+          *)
+            echo "Unknown command: ${COMMAND}" >&2
+            exit 1
+            ;;
+        esac

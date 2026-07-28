@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-reader
+  annotations:
+    iam.gke.io/gcp-service-account: orders-eso-prod@gke-project-503215.iam.gserviceaccount.com
+---
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: gcp-secret-manager
+spec:
+  provider:
+    gcpsm:
+      projectID: gke-project-503215
+      auth:
+        workloadIdentity:
+          clusterLocation: europe-west2
+          clusterName: prod
+          clusterProjectID: gke-project-503215
+          serviceAccountRef:
+            name: secret-reader
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: orders-secrets
+spec:
+  data:
+    - secretKey: postgres
+      remoteRef:
+        key: orders-prod-postgres-password
+    - secretKey: jwt
+      remoteRef:
+        key: orders-prod-jwt-secret
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: grafana-cloud
+spec:
+  data:
+    - secretKey: endpoint
+      remoteRef:
+        key: orders-prod-grafana-cloud
+        property: endpoint
+    - secretKey: instance_id
+      remoteRef:
+        key: orders-prod-grafana-cloud
+        property: instance_id
+    - secretKey: api_token
+      remoteRef:
+        key: orders-prod-grafana-cloud
+        property: api_token

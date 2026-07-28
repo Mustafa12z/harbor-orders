@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+spec:
+  selector:
+    app: worker
+  ports:
+    - port: 8090
+      targetPort: 8090
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      serviceAccountName: worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/worker
+          ports:
+            - containerPort: 8090
+              name: http
+          env:
+            - name: HEALTH_PORT
+              value: "8090"
+            - name: GCP_PROJECT
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: GCP_PROJECT
+            - name: PUBSUB_SUBSCRIPTION
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: PUBSUB_SUBSCRIPTION
+            - name: ORDER_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: ORDER_SERVICE_URL
+            - name: INVENTORY_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: INVENTORY_SERVICE_URL
+            - name: PAYMENT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: PAYMENT_SERVICE_URL
+            - name: NOTIFICATION_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: NOTIFICATION_SERVICE_URL
+            - name: SHIPPING_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: SHIPPING_SERVICE_URL
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+                  optional: true
+            - name: OTEL_TRACES_SAMPLER
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_TRACES_SAMPLER
+                  optional: true
+            - name: OTEL_TRACES_SAMPLER_ARG
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_TRACES_SAMPLER_ARG
+                  optional: true
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_RESOURCE_ATTRIBUTES
+                  optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8090
+            initialDelaySeconds: 15
+            periodSeconds: 20

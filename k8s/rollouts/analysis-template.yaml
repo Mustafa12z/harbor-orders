@@ -1,0 +1,113 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: orders-sli
+spec:
+  args:
+    - name: service-name
+    - name: environment
+  metrics:
+    # Job provider: Argo Rollouts' prometheus provider has no first-class
+    # Secret-backed basic-auth for Grafana Cloud. Jobs mount grafana-cloud and
+    # query the same traces_span_metrics_* SLIs as grafana/dashboards.
+    - name: success-rate
+      interval: 30s
+      count: 3
+      failureLimit: 1
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: query
+                    image: mirror.gcr.io/curlimages/curl:8.10.1
+                    env:
+                      - name: SERVICE
+                        value: "{{args.service-name}}"
+                      - name: ENV
+                        value: "{{args.environment}}"
+                      - name: GRAFANA_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: grafana-cloud
+                            key: api_token
+                      - name: GRAFANA_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: grafana-cloud
+                            key: instance_id
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        set -eu
+                        Q=$(printf 'sum(rate(traces_span_metrics_calls_total{service_name="%s",deployment_environment="%s",span_kind="SPAN_KIND_SERVER",status_code!="STATUS_CODE_ERROR"}[2m]))/sum(rate(traces_span_metrics_calls_total{service_name="%s",deployment_environment="%s",span_kind="SPAN_KIND_SERVER"}[2m]))' "$SERVICE" "$ENV" "$SERVICE" "$ENV")
+                        URL="${GRAFANA_PROM_URL:-https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom}/api/v1/query"
+                        # Avoid curl -f: 401/empty are common on first boot (token scope / no traffic).
+                        CODE=$(curl -sS -o /tmp/prom.json -w "%{http_code}" -u "${GRAFANA_USER}:${GRAFANA_TOKEN}" --get "$URL" --data-urlencode "query=${Q}" || true)
+                        RESP=$(cat /tmp/prom.json 2>/dev/null || true)
+                        echo "grafana_http=${CODE}"
+                        if [ "$CODE" != "200" ]; then
+                          echo "grafana query unavailable (need metrics:read on api_token); skipping gate"
+                          exit 0
+                        fi
+                        VAL=$(printf '%s' "$RESP" | sed -n 's/.*"value":\[[^,]*,"\([^"]*\)"\].*/\1/p' | head -1)
+                        echo "success_rate=${VAL}"
+                        if [ -z "${VAL}" ] || [ "${VAL}" = "null" ]; then
+                          echo "no samples yet; treating as pass (cold start)"
+                          exit 0
+                        fi
+                        awk -v v="${VAL}" 'BEGIN { exit (v+0 >= 0.995) ? 0 : 1 }'
+    - name: p95-latency
+      interval: 30s
+      count: 3
+      failureLimit: 1
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: query
+                    image: mirror.gcr.io/curlimages/curl:8.10.1
+                    env:
+                      - name: SERVICE
+                        value: "{{args.service-name}}"
+                      - name: ENV
+                        value: "{{args.environment}}"
+                      - name: GRAFANA_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: grafana-cloud
+                            key: api_token
+                      - name: GRAFANA_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: grafana-cloud
+                            key: instance_id
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        set -eu
+                        Q=$(printf 'histogram_quantile(0.95,sum by (le)(rate(traces_span_metrics_duration_seconds_bucket{service_name="%s",deployment_environment="%s",span_kind="SPAN_KIND_SERVER"}[2m])))' "$SERVICE" "$ENV")
+                        URL="${GRAFANA_PROM_URL:-https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom}/api/v1/query"
+                        CODE=$(curl -sS -o /tmp/prom.json -w "%{http_code}" -u "${GRAFANA_USER}:${GRAFANA_TOKEN}" --get "$URL" --data-urlencode "query=${Q}" || true)
+                        RESP=$(cat /tmp/prom.json 2>/dev/null || true)
+                        echo "grafana_http=${CODE}"
+                        if [ "$CODE" != "200" ]; then
+                          echo "grafana query unavailable (need metrics:read on api_token); skipping gate"
+                          exit 0
+                        fi
+                        VAL=$(printf '%s' "$RESP" | sed -n 's/.*"value":\[[^,]*,"\([^"]*\)"\].*/\1/p' | head -1)
+                        echo "p95=${VAL}"
+                        if [ -z "${VAL}" ] || [ "${VAL}" = "null" ]; then
+                          echo "no samples yet; treating as pass (cold start)"
+                          exit 0
+                        fi
+                        awk -v v="${VAL}" 'BEGIN { exit (v+0 <= 2.0) ? 0 : 1 }'

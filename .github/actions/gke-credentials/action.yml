@@ -1,0 +1,27 @@
+name: gke-credentials
+description: Fetch kubeconfig for a GKE cluster and install the auth plugin
+inputs:
+  project_id:
+    description: GCP project ID
+    required: true
+  cluster:
+    description: GKE cluster name
+    required: true
+  location:
+    description: GKE region or zone
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PROJECT_ID: ${{ inputs.project_id }}
+        CLUSTER: ${{ inputs.cluster }}
+        LOCATION: ${{ inputs.location }}
+      run: |
+        set -euo pipefail
+        gcloud container clusters get-credentials "${CLUSTER}" \
+          --region "${LOCATION}" \
+          --project "${PROJECT_ID}"
+        gcloud components install gke-gcloud-auth-plugin --quiet || true
+        kubectl cluster-info

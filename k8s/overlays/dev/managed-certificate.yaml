@@ -1,0 +1,7 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: orders-cert
+spec:
+  domains:
+    - dev.order.mustafamirreh.com

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-config
+data:
+  GCP_PROJECT: gke-project-503215
+  PUBSUB_TOPIC: order-events-prod
+  PUBSUB_SUBSCRIPTION: order-events-worker-prod
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+  OTEL_TRACES_SAMPLER_ARG: "0.1"
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment=prod

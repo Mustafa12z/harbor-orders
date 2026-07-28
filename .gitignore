@@ -1,0 +1,53 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Compiled service binaries
+services/api-gateway/api-gateway
+services/dashboard-api/dashboard-api
+services/inventory-service/inventory-service
+services/notification-service/notification-service
+services/order-service/order-service
+services/payment-service/payment-service
+services/scheduler/scheduler
+services/shipping-service/shipping-service
+services/worker/worker
+
+# Go
+/services/*/vendor/
+
+# Terraform
+# .terraform.lock.hcl is deliberately NOT ignored: provider locks are tracked so
+# CI plans are reproducible. See docs/versioning.md.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.auto.tfvars
+backend.hcl
+*.tfplan
+tfplan
+tfplan-*
+crash.log
+crash.*.log
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+*.pem

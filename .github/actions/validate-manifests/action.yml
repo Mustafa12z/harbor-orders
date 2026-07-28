@@ -1,0 +1,31 @@
+name: validate-manifests
+description: kustomize build + kubeconform + conftest for all overlays
+runs:
+  using: composite
+  steps:
+    - name: Install tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz" | tar xz
+        sudo mv kustomize /usr/local/bin/
+        curl -sL "https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz" | tar xz
+        sudo mv kubeconform /usr/local/bin/
+        curl -sL "https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz" | tar xz
+        sudo mv conftest /usr/local/bin/
+    - name: kustomize build + kubeconform + conftest
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "${GITHUB_WORKSPACE}"
+        for env in dev staging prod; do
+          out="/tmp/manifests-${env}.yaml"
+          kustomize build "k8s/overlays/${env}" > "${out}"
+          if grep -E 'IMAGE_PREFIX|PUBLISHER_GSA|WORKER_GSA|__AR_URL__|:latest' "${out}"; then
+            echo "placeholder or :latest found in ${env}" >&2
+            exit 1
+          fi
+          kubeconform -strict -ignore-missing-schemas -summary "${out}"
+          conftest test --policy policy/workload.rego "${out}"
+          conftest test --combine --policy policy/coverage.rego "${out}"
+        done

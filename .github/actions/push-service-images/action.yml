@@ -1,0 +1,75 @@
+name: push-service-images
+description: Build and push service images to Artifact Registry (all services or one)
+inputs:
+  project_id:
+    description: GCP project ID
+    required: true
+  region:
+    description: Artifact Registry region
+    required: false
+    default: europe-west2
+  ar_repo:
+    description: Artifact Registry repository name
+    required: false
+    default: gke-orders
+  image_tag:
+    description: Image tag (e.g. bootstrap or short SHA)
+    required: true
+  service:
+    description: Single service to build; empty builds all nine services
+    required: false
+    default: ""
+  resolve_digest:
+    description: If true, resolve and output the image digest after push
+    required: false
+    default: "false"
+outputs:
+  image:
+    description: Full image name without tag (single-service mode)
+    value: ${{ steps.push.outputs.image }}
+  digest:
+    description: Image digest (when resolve_digest=true)
+    value: ${{ steps.push.outputs.digest }}
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+    - name: Configure Artifact Registry docker auth
+      shell: bash
+      run: gcloud auth configure-docker "${{ inputs.region }}-docker.pkg.dev" --quiet
+    - id: push
+      shell: bash
+      env:
+        PROJECT_ID: ${{ inputs.project_id }}
+        REGION: ${{ inputs.region }}
+        AR_REPO: ${{ inputs.ar_repo }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        SERVICE: ${{ inputs.service }}
+        RESOLVE_DIGEST: ${{ inputs.resolve_digest }}
+      run: |
+        set -euo pipefail
+        ar="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}"
+        if [ -n "${SERVICE}" ]; then
+          services=("${SERVICE}")
+        else
+          services=(
+            api-gateway order-service inventory-service payment-service
+            notification-service shipping-service worker scheduler dashboard-api
+          )
+        fi
+        for svc in "${services[@]}"; do
+          image="${ar}/${svc}"
+          echo "Building ${svc} → ${image}:${IMAGE_TAG}"
+          docker build --platform=linux/amd64 \
+            -t "${image}:${IMAGE_TAG}" \
+            "${GITHUB_WORKSPACE}/services/${svc}"
+          docker push "${image}:${IMAGE_TAG}"
+          if [ -n "${SERVICE}" ]; then
+            echo "image=${image}" >> "$GITHUB_OUTPUT"
+            if [ "${RESOLVE_DIGEST}" = "true" ]; then
+              digest="$(gcloud artifacts docker images describe "${image}:${IMAGE_TAG}" \
+                --format='value(image_summary.digest)')"
+              echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+        done

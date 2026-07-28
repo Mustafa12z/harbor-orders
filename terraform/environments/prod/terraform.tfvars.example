@@ -1,0 +1,40 @@
+project_id    = "YOUR_GCP_PROJECT_ID"
+region        = "europe-west2"
+zone          = "europe-west2-a"
+cluster_name  = "prod"
+k8s_namespace = "orders-prod"
+
+# Public hostname (Route 53 A record + ManagedCertificate). Leave empty to skip.
+# domain_name       = "prod.order.mustafamirreh.com"
+# route53_zone_id   = "Z07782661B5WKHOHAEPWD"
+# route53_zone_name = "mustafamirreh.com"  # used if zone id omitted
+
+# Cloud Monitoring alerts (email). Leave empty to skip policies.
+# alert_email = "you@example.com"
+
+# Grafana Cloud OTLP (enables Alloy + traces). Leave empty to skip.
+# grafana_otlp_endpoint = "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp"
+# grafana_instance_id   = "123456"
+# grafana_api_token     = "glc_..."
+
+# Replace with your public IP/32, e.g. "203.0.113.10/32"
+master_authorized_cidrs = [
+  {
+    cidr_block   = "0.0.0.0/0"
+    display_name = "prod-open-replace-with-your-ip"
+  }
+]
+
+# --- Multi-environment placement ---------------------------------------------
+# When prod shares the dev GCP project, name_suffix keeps every project-scoped
+# resource distinct and dev remains the owner of the enabled APIs, shared
+# Artifact Registry repository.
+#
+# A production workload in the same project as dev is a compromise, not a
+# recommendation. If prod gets its own project, set name_suffix = "",
+# manage_project_singletons = true, and re-run terraform init.
+# name_suffix               = "-prod"
+# manage_project_singletons = false
+
+# deletion_protection defaults to true here; terraform destroy will refuse until
+# it is explicitly set to false.

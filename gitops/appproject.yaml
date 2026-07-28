@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: harbor-orders
+  namespace: argocd
+spec:
+  description: Harbor Orders platform applications
+  sourceRepos:
+    - git@github.com:Mustafa12z/gke-microservices.git
+    - https://github.com/Mustafa12z/gke-microservices.git
+  destinations:
+    - namespace: orders
+      server: https://kubernetes.default.svc
+    - namespace: orders-staging
+      server: https://kubernetes.default.svc
+    - namespace: orders-prod
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: networking.gke.io
+      kind: ManagedCertificate
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

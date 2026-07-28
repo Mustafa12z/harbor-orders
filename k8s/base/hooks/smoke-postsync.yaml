@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: smoke-runner
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: smoke-postsync
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      serviceAccountName: smoke-runner
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: smoke
+          image: mirror.gcr.io/curlimages/curl:8.10.1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              fail=0
+              for pair in \
+                "api-gateway:8080" \
+                "order-service:8081" \
+                "inventory-service:8082" \
+                "payment-service:8083" \
+                "notification-service:8084" \
+                "shipping-service:8085" \
+                "dashboard-api:8086" \
+                "worker:8090" \
+                "scheduler:8091"; do
+                svc="${pair%%:*}"
+                port="${pair##*:}"
+                echo "Checking ${svc}:${port}/healthz"
+                if ! curl -fsS --max-time 10 "http://${svc}:${port}/healthz" >/dev/null; then
+                  echo "FAIL ${svc}"
+                  fail=1
+                else
+                  echo "OK ${svc}"
+                fi
+              done
+              exit "${fail}"

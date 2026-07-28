@@ -1,0 +1,25 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: grafana-cloud
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: gcp-secret-manager
+    kind: SecretStore
+  target:
+    name: grafana-cloud
+    creationPolicy: Owner
+  data:
+    - secretKey: endpoint
+      remoteRef:
+        key: orders-grafana-cloud
+        property: endpoint
+    - secretKey: instance_id
+      remoteRef:
+        key: orders-grafana-cloud
+        property: instance_id
+    - secretKey: api_token
+      remoteRef:
+        key: orders-grafana-cloud
+        property: api_token

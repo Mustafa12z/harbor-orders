@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: orders
+resources:
+  - env-value.yaml
+  - ../../base
+  - ingress.yaml
+  - managed-certificate.yaml
+  - ../../base/observability
+  - ../../base/externalsecrets
+  - ../../base/hooks
+  - ../../rollouts
+
+patches:
+  - path: hpa-patch.yaml
+  - path: sa-annotations.yaml
+  - path: eso-patch.yaml
+  - path: config-patch.yaml
+
+# Pin by digest once app-ci has built images. Until then, :bootstrap is pushed
+# by infra-ci (after Terraform, before Argo). See docs/versioning.md.
+images:
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/api-gateway
+    digest: sha256:be865c8ce01707027d67c71f41abebd01c609afd6b944ab45e8c543bcf83a0d6
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/order-service
+    digest: sha256:180e739485113930c8a466f4332ff7f0f164d86172fe5d7cc138916afacd5a36
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/inventory-service
+    digest: sha256:ad8d55de3c8c74cfc40e2e1f1ec595123a9b88e96fad62e35afc27fccdb4bddc
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/payment-service
+    digest: sha256:825c8ccbba02f1c2799580987336001e8135627de3f8268069c51a9154308f08
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/notification-service
+    digest: sha256:16d42247a541683213163423b50ca101ec7346fc6767f48533963c0e90189e99
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/shipping-service
+    digest: sha256:773a0f083e1c415e4f714c4ab63a56135f64547334d3eae392de71883ff589d4
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/worker
+    digest: sha256:aacf586aea9a81ed4d810864844e4e87558d61700c663991989848963c2fde6e
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/scheduler
+    digest: sha256:0866569f459de8492973c0e2cff84ecd57bf91cb9892b74884b3ad176321b42b
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/dashboard-api
+    digest: sha256:98184105e255f4cd6eab493859d0a78eeced9ccac23cdf7b64cf6a2ffcbb61ae
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: rollout-env
+      fieldPath: data.environment
+    targets:
+      - select:
+          kind: Rollout
+        fieldPaths:
+          - spec.strategy.canary.steps.*.analysis.args.[name=environment].value
+        options:
+          create: false

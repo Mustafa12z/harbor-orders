@@ -1,0 +1,2 @@
+bucket = "muzzy-gke"
+prefix = "env/dev"

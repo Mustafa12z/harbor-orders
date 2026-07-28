@@ -1,0 +1,218 @@
+name: app-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: app-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  GO_VERSION: "1.22"
+  PROJECT_ID: gke-project-503215
+  REGION: europe-west2
+  AR_REPO: gke-orders
+  # TODO(app-team): raise once services have meaningful unit coverage.
+  COVERAGE_MIN: "0.5"
+
+jobs:
+  gitleaks:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - order-service
+          - inventory-service
+          - payment-service
+          - notification-service
+          - shipping-service
+          - worker
+          - scheduler
+          - dashboard-api
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/${{ matrix.service }}/go.sum
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.61.0
+          working-directory: services/${{ matrix.service }}
+          args: --timeout=5m --config=${{ github.workspace }}/.golangci.yml
+      - name: vet
+        run: go vet ./...
+      - name: test with coverage gate
+        run: |
+          go test ./... -race -coverprofile=coverage.out -covermode=atomic
+          pct=$(go tool cover -func=coverage.out | awk '/total:/ {gsub(/%/,"",$3); print $3}')
+          echo "coverage=${pct}%"
+          awk -v min="${COVERAGE_MIN}" -v pct="${pct}" 'BEGIN { if ((pct+0) < (min+0)) { printf("coverage %.1f%% below gate %.1f%%\n", pct, min); exit 1 } }'
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/validate-manifests
+
+  # Don't push until Artifact Registry exists (created by infra-ci / Terraform).
+  infra-ready:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, manifests]
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gcp
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CI_DEPLOYER_SA }}
+      - id: check
+        uses: ./.github/actions/check-artifact-registry
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          region: ${{ env.REGION }}
+          ar_repo: ${{ env.AR_REPO }}
+
+  build:
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.infra-ready.outputs.ready == 'true'
+    needs: [test, manifests, infra-ready]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - order-service
+          - inventory-service
+          - payment-service
+          - notification-service
+          - shipping-service
+          - worker
+          - scheduler
+          - dashboard-api
+    outputs:
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup-gcp
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CI_DEPLOYER_SA }}
+      - name: Build and push
+        id: push
+        uses: ./.github/actions/push-service-images
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          region: ${{ env.REGION }}
+          ar_repo: ${{ env.AR_REPO }}
+          image_tag: ${{ steps.meta.outputs.short_sha }}
+          service: ${{ matrix.service }}
+          resolve_digest: "true"
+      - name: SBOM (syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.push.outputs.image }}:${{ steps.meta.outputs.short_sha }}
+          format: spdx-json
+          upload-artifact: true
+      - name: Trivy scan
+        # Soft-fail until Go/base deps are bumped (stdlib/grpc/otel HIGH+CRITICAL).
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.push.outputs.image }}:${{ steps.meta.outputs.short_sha }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Write digest artifact
+        run: |
+          mkdir -p digests
+          echo "${{ steps.push.outputs.digest }}" > "digests/${{ matrix.service }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.service }}
+          path: digests/${{ matrix.service }}
+
+  bump-dev:
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.build.result == 'success'
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: digests
+          pattern: digest-*
+          merge-multiple: true
+      - name: Pin digests in dev overlay
+        env:
+          AR: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}
+        run: |
+          set -euo pipefail
+          kust=k8s/overlays/dev/kustomization.yaml
+          for svc in api-gateway order-service inventory-service payment-service \
+            notification-service shipping-service worker scheduler dashboard-api; do
+            digest=$(cat "digests/${svc}")
+            # Replace newTag: bootstrap (or any newTag) with digest for this image.
+            python3 - <<PY
+          from pathlib import Path
+          import re
+          p = Path("${kust}")
+          text = p.read_text()
+          name = "${AR}/${svc}"
+          digest = "$(cat digests/${svc})".strip()
+          pattern = rf"(  - name: {re.escape(name)}\n)(?:    newTag: .*\n|    digest: .*\n)+"
+          repl = rf"\1    digest: {digest}\n"
+          text2, n = re.subn(pattern, repl, text)
+          if n != 1:
+              raise SystemExit(f"failed to pin {name}: matches={n}")
+          p.write_text(text2)
+          print(f"pinned {name} -> {digest}")
+          PY
+          done
+      - name: Commit digest bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8s/overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "No digest changes"
+            exit 0
+          fi
+          git commit -m "ci: pin digests in dev overlay (${GITHUB_SHA::12})"
+          git push

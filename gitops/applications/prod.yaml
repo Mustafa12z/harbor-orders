@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-orders-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: harbor-orders
+  source:
+    repoURL: git@github.com:Mustafa12z/gke-microservices.git
+    targetRevision: HEAD
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: orders-prod
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Rollout
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  # Manual sync for prod — no automated policy.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true

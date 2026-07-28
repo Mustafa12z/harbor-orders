@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: event-publisher
+  annotations:
+    iam.gke.io/gcp-service-account: orders-publisher@gke-project-503215.iam.gserviceaccount.com
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: worker
+  annotations:
+    iam.gke.io/gcp-service-account: orders-worker@gke-project-503215.iam.gserviceaccount.com

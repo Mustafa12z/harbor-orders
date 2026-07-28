@@ -1,0 +1,201 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alloy-config
+data:
+  config.alloy: |
+    otelcol.receiver.otlp "default" {
+      grpc {
+        endpoint = "0.0.0.0:4317"
+      }
+      http {
+        endpoint = "0.0.0.0:4318"
+      }
+      output {
+        metrics = [otelcol.processor.batch.default.input]
+        traces  = [
+          otelcol.processor.batch.default.input,
+          otelcol.connector.spanmetrics.red.input,
+          otelcol.connector.servicegraph.default.input,
+        ]
+        logs = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    // Derive RED metrics (rate / errors / duration) from spans for SRE dashboards.
+    otelcol.connector.spanmetrics "red" {
+      namespace = "traces.span.metrics"
+
+      // Keep resource identity stable across restarts (avoids counter resets / dup series).
+      resource_metrics_key_attributes = [
+        "service.name",
+        "deployment.environment",
+      ]
+
+      dimension {
+        name = "http.method"
+      }
+      dimension {
+        name = "http.status_code"
+      }
+      dimension {
+        name = "http.route"
+      }
+
+      histogram {
+        unit = "s"
+        explicit {
+          buckets = [
+            "5ms", "10ms", "25ms", "50ms", "100ms",
+            "250ms", "500ms", "1s", "2.5s", "5s", "10s",
+          ]
+        }
+      }
+
+      metrics_flush_interval = "15s"
+      dimensions_cache_size  = 2000
+
+      output {
+        metrics = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    // Edge metrics for service-graph views (client → server).
+    otelcol.connector.servicegraph "default" {
+      dimensions = ["http.method", "http.status_code"]
+
+      store {
+        ttl = "2s"
+      }
+
+      metrics_flush_interval = "15s"
+
+      output {
+        metrics = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    otelcol.processor.batch "default" {
+      output {
+        metrics = [otelcol.exporter.otlphttp.grafana.input]
+        traces  = [otelcol.exporter.otlphttp.grafana.input]
+        logs    = [otelcol.exporter.otlphttp.grafana.input]
+      }
+    }
+
+    otelcol.auth.basic "grafana" {
+      username = sys.env("GRAFANA_CLOUD_INSTANCE_ID")
+      password = sys.env("GRAFANA_CLOUD_API_TOKEN")
+    }
+
+    otelcol.exporter.otlphttp "grafana" {
+      client {
+        endpoint = sys.env("GRAFANA_CLOUD_OTLP_ENDPOINT")
+        auth     = otelcol.auth.basic.grafana.handler
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy
+spec:
+  selector:
+    app: grafana-alloy
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-alloy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana-alloy
+  template:
+    metadata:
+      labels:
+        app: grafana-alloy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: alloy
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image: mirror.gcr.io/grafana/alloy:v1.5.1
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --storage.path=/tmp/alloy
+            - --server.http.listen-addr=0.0.0.0:12345
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: http
+              containerPort: 12345
+          env:
+            - name: GRAFANA_CLOUD_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-cloud
+                  key: endpoint
+            - name: GRAFANA_CLOUD_INSTANCE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-cloud
+                  key: instance_id
+            - name: GRAFANA_CLOUD_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-cloud
+                  key: api_token
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+            # remotecfg / --storage.path need a writable dir with readOnlyRootFilesystem
+            - name: alloy-tmp
+              mountPath: /tmp/alloy
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 12345
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/ready
+              port: 12345
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: grafana-alloy-config
+        - name: alloy-tmp
+          emptyDir: {}

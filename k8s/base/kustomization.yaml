@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: orders
+resources:
+  - namespace-sa.yaml
+  - config.yaml
+  - postgres.yaml
+  - redis.yaml
+  - api-gateway.yaml
+  - order-service.yaml
+  - inventory-service.yaml
+  - payment-service.yaml
+  - notification-service.yaml
+  - shipping-service.yaml
+  - worker.yaml
+  - scheduler.yaml
+  - dashboard-api.yaml
+  - pdb
+  - hpa
+  - networkpolicies.yaml
+  # observability/ is included by overlays when Alloy is desired
+
+# Workloads after migrate (wave 1); data plane / secrets are wave 0.
+# HPAs must come after Rollouts/Deployments exist or Argo health-gates waves.
+patches:
+  - target:
+      group: argoproj.io
+      kind: Rollout
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "2"
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "2"
+  - target:
+      group: autoscaling
+      kind: HorizontalPodAutoscaler
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          argocd.argoproj.io/sync-wave: "3"
+
+
+# Canonical image names; overlays pin digest (or bootstrap tag until app-ci runs).
+images:
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/api-gateway
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/order-service
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/inventory-service
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/payment-service
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/notification-service
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/shipping-service
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/worker
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/scheduler
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/dashboard-api

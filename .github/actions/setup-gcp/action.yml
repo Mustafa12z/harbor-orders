@@ -1,0 +1,31 @@
+name: setup-gcp
+description: Authenticate to GCP via Workload Identity Federation and optionally AWS for Route 53
+inputs:
+  workload_identity_provider:
+    description: GCP Workload Identity Provider resource name
+    required: true
+  service_account:
+    description: GCP service account email to impersonate
+    required: true
+  aws_role_arn:
+    description: Optional AWS IAM role ARN for Route 53 (empty skips AWS auth)
+    required: false
+    default: ""
+  aws_region:
+    description: AWS region for Route 53 credentials
+    required: false
+    default: eu-west-2
+runs:
+  using: composite
+  steps:
+    - uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.service_account }}
+    - uses: google-github-actions/setup-gcloud@v2
+    - name: AWS OIDC (Route 53)
+      if: inputs.aws_role_arn != ''
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws_role_arn }}
+        aws-region: ${{ inputs.aws_region }}

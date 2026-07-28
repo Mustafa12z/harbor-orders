@@ -1,0 +1,43 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orders
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.allow-http: "true"
+    kubernetes.io/ingress.global-static-ip-name: "gke-orders-prod-ingress"
+    networking.gke.io/managed-certificates: "orders-cert"
+spec:
+  rules:
+    # Distinct from the live dev hostname until DNS cutover; see docs/promotion.md.
+    - host: prod.order.mustafamirreh.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard-api
+                port:
+                  number: 8086

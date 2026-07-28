@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: orders-staging
+resources:
+  - env-value.yaml
+  - ../../base
+  - ingress.yaml
+  - managed-certificate.yaml
+  - ../../base/observability
+  - ../../base/externalsecrets
+  - ../../base/hooks
+  - ../../rollouts
+
+patches:
+  - path: hpa-patch.yaml
+  - path: sa-annotations.yaml
+  - path: eso-patch.yaml
+  - path: config-patch.yaml
+  - target:
+      kind: Namespace
+      name: orders
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: orders-staging
+
+images:
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/api-gateway
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/order-service
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/inventory-service
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/payment-service
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/notification-service
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/shipping-service
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/worker
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/scheduler
+    newTag: bootstrap
+  - name: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/dashboard-api
+    newTag: bootstrap
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: rollout-env
+      fieldPath: data.environment
+    targets:
+      - select:
+          kind: Rollout
+        fieldPaths:
+          - spec.strategy.canary.steps.*.analysis.args.[name=environment].value
+        options:
+          create: false

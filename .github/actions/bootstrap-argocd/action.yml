@@ -1,0 +1,14 @@
+name: bootstrap-argocd
+description: Install Argo CD and apply gitops Application for one environment
+inputs:
+  environment:
+    description: Environment name (dev, staging, prod)
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        ENV: ${{ inputs.environment }}
+        # Callers must pass ARGOCD_REPO_SSH_KEY / ARGOCD_REPO_TOKEN / GH_TOKEN via job/step env.
+      run: bash "${GITHUB_WORKSPACE}/scripts/bootstrap-argocd.sh" "${ENV}"

@@ -1,0 +1,38 @@
+name: check-artifact-registry
+description: Check whether the Artifact Registry Docker repository exists
+inputs:
+  project_id:
+    description: GCP project ID
+    required: true
+  region:
+    description: Artifact Registry region
+    required: false
+    default: europe-west2
+  ar_repo:
+    description: Artifact Registry repository name
+    required: false
+    default: gke-orders
+outputs:
+  ready:
+    description: true if the repository exists
+    value: ${{ steps.check.outputs.ready }}
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        PROJECT_ID: ${{ inputs.project_id }}
+        REGION: ${{ inputs.region }}
+        AR_REPO: ${{ inputs.ar_repo }}
+      run: |
+        set -euo pipefail
+        if gcloud artifacts repositories describe "${AR_REPO}" \
+            --location="${REGION}" \
+            --project="${PROJECT_ID}" >/dev/null 2>&1; then
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "Artifact Registry ${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO} is ready."
+        else
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          echo "Artifact Registry ${AR_REPO} not found in ${REGION}; create it with gcloud (or console) before image build/push."
+        fi

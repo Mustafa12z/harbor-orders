@@ -1,0 +1,67 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  annotations:
+    # Sync-wave (not PreSync): needs postgres, secrets, and the db-migrations
+    # ConfigMap which are applied in earlier waves of the same sync.
+    argocd.argoproj.io/sync-wave: "1"
+    # Delete previous Job before recreate — Replace=true breaks on auto-generated
+    # Job selectors when pod template labels change.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        # Required for allow-apps-to-postgres NetworkPolicy.
+        app: db-migrate
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: mirror.gcr.io/library/postgres:16
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orders-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGHOST
+              value: postgres
+            - name: PGUSER
+              value: app
+            - name: PGDATABASE
+              value: orders
+          volumeMounts:
+            - name: sql
+              mountPath: /migrations
+              readOnly: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "Waiting for postgres..."
+              until pg_isready -h "$PGHOST" -U "$PGUSER"; do sleep 2; done
+              for f in /migrations/*.sql; do
+                echo "Applying $f"
+                psql -v ON_ERROR_STOP=1 -f "$f"
+              done
+              echo "Migrations complete"
+      volumes:
+        - name: sql
+          configMap:
+            name: db-migrations

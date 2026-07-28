@@ -1,0 +1,201 @@
+name: infra-ci
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - "terraform/**"
+      - "gitops/**"
+      - "scripts/bootstrap-argocd.sh"
+      - ".github/workflows/infra-ci.yaml"
+      - ".github/actions/**"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "gitops/**"
+      - "scripts/bootstrap-argocd.sh"
+      - ".github/workflows/infra-ci.yaml"
+      - ".github/actions/**"
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  # 1.9+ required for cross-variable validation blocks (route53_zone_*).
+  TF_VERSION: "1.9.8"
+  REGION: europe-west2
+
+jobs:
+  detect:
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.dirs.outputs.envs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: dirs
+        run: |
+          # Deploy path is dev-only for now (faster CI / easier debugging).
+          uniq='["dev"]'
+          echo "envs=${uniq}" >> "$GITHUB_OUTPUT"
+          echo "Planning environments: ${uniq}"
+
+  lint:
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: fmt
+        run: terraform fmt -check -recursive terraform
+      - name: tflint
+        uses: terraform-linters/setup-tflint@v4
+      - run: |
+          for d in terraform/environments/dev terraform/environments/staging terraform/environments/prod; do
+            tflint --chdir="$d"
+          done
+          tflint --chdir=terraform/modules --recursive
+      - name: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          soft_fail: true
+          framework: terraform
+
+  plan:
+    needs: [detect, lint]
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJson(needs.detect.outputs.envs) }}
+    environment: ${{ matrix.env }}-plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - uses: ./.github/actions/setup-gcp
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CI_TF_PLAN_SA }}
+          aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
+      - name: Terraform init + plan
+        uses: ./.github/actions/terraform-env
+        env:
+          TF_VAR_project_id: ${{ vars.TF_VAR_project_id }}
+          TF_VAR_domain_name: ${{ vars.TF_VAR_domain_name }}
+          TF_VAR_route53_zone_id: ${{ vars.TF_VAR_route53_zone_id }}
+          TF_VAR_alert_email: ${{ vars.TF_VAR_alert_email }}
+          TF_VAR_grafana_otlp_endpoint: ${{ secrets.TF_VAR_grafana_otlp_endpoint }}
+          TF_VAR_grafana_instance_id: ${{ vars.TF_VAR_grafana_instance_id }}
+          TF_VAR_grafana_api_token: ${{ secrets.TF_VAR_grafana_api_token }}
+        with:
+          environment: ${{ matrix.env }}
+          command: plan
+      - name: Comment plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('terraform/environments/${{ matrix.env }}/plan.txt', 'utf8');
+            const clipped = body.length > 60000 ? body.slice(0, 60000) + '\n…truncated…' : body;
+            const marker = `<!-- tfplan-${{ matrix.env }} -->`;
+            const text = `${marker}\n### Terraform plan (\`${{ matrix.env }}\`)\n\`\`\`\n${clipped}\n\`\`\``;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body: text,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body: text,
+              });
+            }
+
+  # Apply is deliberately dev-only while debugging the CI→CD path.
+  apply:
+    needs: [lint]
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: ./.github/actions/setup-gcp
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CI_TF_APPLY_SA }}
+          aws_role_arn: ${{ vars.AWS_ROLE_ARN }}
+      - name: Terraform apply
+        id: tf
+        uses: ./.github/actions/terraform-env
+        env:
+          TF_VAR_project_id: ${{ vars.TF_VAR_project_id }}
+          TF_VAR_domain_name: ${{ vars.TF_VAR_domain_name }}
+          TF_VAR_route53_zone_id: ${{ vars.TF_VAR_route53_zone_id }}
+          TF_VAR_alert_email: ${{ vars.TF_VAR_alert_email }}
+          TF_VAR_grafana_otlp_endpoint: ${{ secrets.TF_VAR_grafana_otlp_endpoint }}
+          TF_VAR_grafana_instance_id: ${{ vars.TF_VAR_grafana_instance_id }}
+          TF_VAR_grafana_api_token: ${{ secrets.TF_VAR_grafana_api_token }}
+        with:
+          environment: dev
+          command: apply
+
+      # Shared AR is created by the dev root. Push :bootstrap images before Argo
+      # syncs overlays that still pin newTag: bootstrap.
+      - name: Auth as deployer (image push)
+        uses: ./.github/actions/setup-gcp
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CI_DEPLOYER_SA }}
+      - name: Build and push bootstrap images
+        uses: ./.github/actions/push-service-images
+        with:
+          project_id: ${{ vars.TF_VAR_project_id }}
+          region: ${{ env.REGION }}
+          image_tag: bootstrap
+
+      # ci-deployer is only roles/container.developer — Argo install needs RBAC
+      # create (roles/clusterroles). Switch back to the apply SA for kube admin.
+      - name: Auth as apply SA (cluster admin for Argo)
+        uses: ./.github/actions/setup-gcp
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CI_TF_APPLY_SA }}
+      - name: Get cluster credentials
+        uses: ./.github/actions/gke-credentials
+        with:
+          project_id: ${{ vars.TF_VAR_project_id }}
+          cluster: ${{ steps.tf.outputs.cluster }}
+          location: ${{ steps.tf.outputs.location }}
+
+      - name: Bootstrap Argo CD
+        uses: ./.github/actions/bootstrap-argocd
+        env:
+          ARGOCD_REPO_SSH_KEY: ${{ secrets.ARGOCD_REPO_SSH_KEY }}
+          ARGOCD_REPO_TOKEN: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          environment: dev

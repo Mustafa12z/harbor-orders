@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - api-gateway.yaml
+  - order-service.yaml
+  - inventory-service.yaml
+  - payment-service.yaml
+  - notification-service.yaml
+  - shipping-service.yaml
+  - dashboard-api.yaml
+  - worker.yaml
+  - scheduler.yaml

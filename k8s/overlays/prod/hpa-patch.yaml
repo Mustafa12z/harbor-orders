@@ -1,0 +1,71 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-service
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: inventory-service
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: payment-service
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: notification-service
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: shipping-service
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dashboard-api
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: scheduler
+spec:
+  minReplicas: 3
+  maxReplicas: 10

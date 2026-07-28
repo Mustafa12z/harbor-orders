@@ -1,0 +1,182 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping-service
+spec:
+  selector:
+    app: shipping-service
+  ports:
+    - port: 8085
+      targetPort: 8085
+      name: http
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: shipping-service
+spec:
+  replicas: 1
+  strategy:
+    canary:
+      # Replica-weighted canary (GCE Ingress has no Argo Rollouts traffic router).
+      maxUnavailable: 0
+      steps:
+        - setWeight: 10
+        - analysis:
+            templates:
+              - templateName: orders-sli
+            args:
+              - name: service-name
+                value: shipping-service
+              - name: environment
+                value: ENV_PLACEHOLDER
+        - pause: {duration: 30s}
+        - setWeight: 30
+        - analysis:
+            templates:
+              - templateName: orders-sli
+            args:
+              - name: service-name
+                value: shipping-service
+              - name: environment
+                value: ENV_PLACEHOLDER
+        - pause: {duration: 30s}
+        - setWeight: 100
+  selector:
+    matchLabels:
+      app: shipping-service
+  template:
+    metadata:
+      labels:
+        app: shipping-service
+    spec:
+      serviceAccountName: event-publisher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: shipping-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image: europe-west2-docker.pkg.dev/gke-project-503215/gke-orders/shipping-service
+          ports:
+            - containerPort: 8085
+              name: http
+          env:
+            - name: PORT
+              value: "8085"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: orders-secrets
+                  key: DATABASE_URL
+                  optional: true
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: orders-secrets
+                  key: JWT_SECRET
+                  optional: true
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: REDIS_URL
+                  optional: true
+            - name: GCP_PROJECT
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: GCP_PROJECT
+            - name: PUBSUB_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: PUBSUB_TOPIC
+            - name: PUBSUB_SUBSCRIPTION
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: PUBSUB_SUBSCRIPTION
+                  optional: true
+            - name: ORDER_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: ORDER_SERVICE_URL
+            - name: INVENTORY_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: INVENTORY_SERVICE_URL
+            - name: PAYMENT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: PAYMENT_SERVICE_URL
+            - name: NOTIFICATION_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: NOTIFICATION_SERVICE_URL
+            - name: SHIPPING_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: SHIPPING_SERVICE_URL
+            - name: DASHBOARD_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: DASHBOARD_SERVICE_URL
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+                  optional: true
+            - name: OTEL_TRACES_SAMPLER
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_TRACES_SAMPLER
+                  optional: true
+            - name: OTEL_TRACES_SAMPLER_ARG
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_TRACES_SAMPLER_ARG
+                  optional: true
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              valueFrom:
+                configMapKeyRef:
+                  name: orders-config
+                  key: OTEL_RESOURCE_ATTRIBUTES
+                  optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8085
+            initialDelaySeconds: 15
+            periodSeconds: 20

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Harbor — Everyday goods, shipped well</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1a1714;
+      --paper: #f3eee6;
+      --sand: #e6dfd3;
+      --amber: #c47a2c;
+      --amber-deep: #9a5c1a;
+      --mist: rgba(255, 255, 255, 0.08);
+      --line: rgba(26, 23, 20, 0.12);
+      --ok: #2f6b4f;
+      --bad: #a33b2d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: "DM Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #d9c4a3 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #c4b49a 0%, transparent 50%),
+        linear-gradient(180deg, #ebe4d8 0%, var(--paper) 40%, #e8e1d5 100%);
+      min-height: 100vh;
+    }
+
+    a { color: inherit; }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem 6vw;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(10px);
+      background: rgba(243, 238, 230, 0.82);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      font-family: "Fraunces", serif;
+      font-size: 1.55rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span { color: var(--amber-deep); }
+
+    .nav-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+    .ghost, .solid, .icon-btn {
+      font: inherit;
+      border: none;
+      cursor: pointer;
+      border-radius: 999px;
+      padding: 0.55rem 1rem;
+      transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+    }
+
+    .ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+    }
+
+    .ghost:hover { background: rgba(26, 23, 20, 0.05); }
+
+    .solid {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .solid:hover { transform: translateY(-1px); background: #2a2420; }
+
+    .icon-btn {
+      position: relative;
+      background: var(--sand);
+      padding: 0.55rem 0.9rem;
+    }
+
+    .badge-count {
+      position: absolute;
+      top: -4px;
+      right: -2px;
+      background: var(--amber);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 600;
+      min-width: 1.15rem;
+      height: 1.15rem;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+    }
+
+    .hero {
+      min-height: calc(100vh - 72px);
+      display: grid;
+      align-content: center;
+      padding: 4rem 6vw 5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 12% -10% auto auto;
+      width: min(48vw, 520px);
+      height: min(48vw, 520px);
+      border-radius: 40% 60% 55% 45%;
+      background: linear-gradient(145deg, rgba(196, 122, 44, 0.35), rgba(26, 23, 20, 0.08));
+      filter: blur(2px);
+      animation: drift 12s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes drift {
+      from { transform: translate(0, 0) rotate(0deg); }
+      to { transform: translate(-24px, 18px) rotate(8deg); }
+    }
+
+    .hero-brand {
+      font-family: "Fraunces", serif;
+      font-size: clamp(3rem, 8vw, 6.5rem);
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      max-width: 11ch;
+      animation: rise 700ms ease both;
+    }
+
+    .hero p {
+      margin-top: 1.25rem;
+      max-width: 34ch;
+      font-size: 1.1rem;
+      line-height: 1.5;
+      color: rgba(26, 23, 20, 0.72);
+      animation: rise 700ms ease 80ms both;
+    }
+
+    .hero .cta {
+      margin-top: 2rem;
+      display: inline-flex;
+      animation: rise 700ms ease 140ms both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section {
+      padding: 3rem 6vw 4rem;
+    }
+
+    .section h2 {
+      font-family: "Fraunces", serif;
+      font-size: 2rem;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .catalog {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .product {
+      background: rgba(255, 255, 255, 0.45);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: transform 200ms ease, box-shadow 200ms ease;
+    }
+
+    .product:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 40px rgba(26, 23, 20, 0.08);
+    }
+
+    .swatch {
+      height: 140px;
+      border-radius: 12px;
+      background:
+        linear-gradient(145deg, rgba(26, 23, 20, 0.08), transparent),
+        var(--tone, #c9b8a0);
+    }
+
+    .product h3 {
+      font-family: "Fraunces", serif;
+      font-size: 1.15rem;
+      font-weight: 500;
+    }
+
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: rgba(26, 23, 20, 0.7);
+    }
+
+    .price { font-weight: 600; color: var(--ink); font-size: 1.05rem; }
+
+    .product .solid { width: 100%; border-radius: 12px; margin-top: auto; }
+
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(26, 23, 20, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+      z-index: 30;
+    }
+
+    .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(420px, 100%);
+      height: 100%;
+      background: var(--paper);
+      border-left: 1px solid var(--line);
+      z-index: 40;
+      transform: translateX(100%);
+      transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem;
+    }
+
+    .drawer.open { transform: translateX(0); }
+
+    .drawer h2 {
+      font-family: "Fraunces", serif;
+      font-size: 1.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .cart-lines { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .cart-line {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.35rem 0.75rem;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .qty-row { display: flex; gap: 0.4rem; align-items: center; }
+
+    .qty-row button {
+      width: 1.7rem;
+      height: 1.7rem;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--sand);
+      cursor: pointer;
+    }
+
+    .checkout {
+      border-top: 1px solid var(--line);
+      padding-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .checkout input {
+      width: 100%;
+      padding: 0.7rem 0.8rem;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font: inherit;
+    }
+
+    .checkout .total {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+      margin: 0.4rem 0;
+    }
+
+    .panel {
+      display: none;
+      padding: 3rem 6vw 5rem;
+    }
+
+    .panel.active { display: block; animation: rise 400ms ease both; }
+
+    .status-card {
+      max-width: 560px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 1.5rem;
+    }
+
+    .steps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 1.25rem 0;
+    }
+
+    .step {
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 0.8rem;
+      color: rgba(26, 23, 20, 0.55);
+    }
+
+    .step.done { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .step.current { background: var(--amber); color: #fff; border-color: var(--amber); }
+
+    .toast {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 0.85rem 1.1rem;
+      border-radius: 12px;
+      display: none;
+      z-index: 50;
+      max-width: 280px;
+    }
+
+    .toast.error { background: var(--bad); }
+    .toast.show { display: block; animation: rise 250ms ease both; }
+
+    .empty { color: rgba(26, 23, 20, 0.55); padding: 1rem 0; }
+
+    .admin-link { font-size: 0.85rem; opacity: 0.7; text-decoration: none; }
+    .admin-link:hover { opacity: 1; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#" onclick="showView('shop'); return false;">Harbor <span>Orders</span></a>
+    <div class="nav-actions">
+      <a class="admin-link" href="/admin/">Admin</a>
+      <button class="icon-btn" onclick="openCart()" aria-label="Open cart">
+        Cart <span class="badge-count" id="cart-count">0</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="view-shop" class="panel active">
+    <section class="hero">
+      <div class="hero-brand">Harbor</div>
+      <p>Quiet goods for daily rituals — from cart to doorstep, watch the whole fulfillment path unfold.</p>
+      <a class="solid cta" href="#catalog">Browse the shelf</a>
+    </section>
+
+    <section class="section" id="catalog">
+      <h2>On the shelf</h2>
+      <div class="catalog" id="product-grid">
+        <p class="empty">Loading products…</p>
+      </div>
+    </section>
+  </main>
+
+  <main id="view-order" class="panel">
+    <section class="section">
+      <h2>Your order</h2>
+      <div class="status-card" id="order-card">
+        <p class="empty">No active order.</p>
+      </div>
+      <p style="margin-top:1.25rem">
+        <button class="ghost" onclick="showView('shop')">Back to shop</button>
+        <a class="ghost" href="/admin/" style="margin-left:0.5rem;display:inline-block;text-decoration:none">Open admin</a>
+      </p>
+    </section>
+  </main>
+
+  <div class="drawer-backdrop" id="backdrop" onclick="closeCart()"></div>
+  <aside class="drawer" id="drawer" aria-label="Cart">
+    <h2>Your cart</h2>
+    <div class="cart-lines" id="cart-lines"></div>
+    <form class="checkout" id="checkout-form" onsubmit="checkout(event)">
+      <input name="name" placeholder="Full name" required>
+      <input name="email" type="email" placeholder="Email" required>
+      <input name="address_line1" placeholder="Address" required>
+      <input name="city" placeholder="City" required>
+      <input name="postcode" placeholder="Postcode" required>
+      <div class="total"><span>Total</span><span id="cart-total">£0.00</span></div>
+      <button class="solid" type="submit" id="checkout-btn">Place order</button>
+    </form>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API = window.location.origin;
+    const FLOW = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
+    const TONES = ['#c9b8a0', '#b7a48a', '#d2c2a8', '#a89880', '#cfc0a6', '#8f7f6a', '#d8cbb5', '#9c8b74'];
+
+    let products = [];
+    let cart = JSON.parse(localStorage.getItem('harbor_cart') || '{}');
+    let token = localStorage.getItem('harbor_token') || '';
+    let activeOrderId = localStorage.getItem('harbor_order_id') || '';
+    let pollTimer = null;
+
+    function money(n) {
+      return '£' + (Number(n) || 0).toFixed(2);
+    }
+
+    function toast(msg, error) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (error ? ' error' : '');
+      setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
+    function cartCount() {
+      return Object.values(cart).reduce((s, l) => s + l.quantity, 0);
+    }
+
+    function cartTotal() {
+      return Object.values(cart).reduce((s, l) => s + l.quantity * l.price, 0);
+    }
+
+    function saveCart() {
+      localStorage.setItem('harbor_cart', JSON.stringify(cart));
+      document.getElementById('cart-count').textContent = cartCount();
+      renderCart();
+    }
+
+    function addToCart(id) {
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      if ((p.available ?? p.stock) < 1) { toast('Out of stock', true); return; }
+      if (!cart[id]) cart[id] = { product_id: id, name: p.name, price: p.price, quantity: 0 };
+      cart[id].quantity += 1;
+      saveCart();
+      toast(p.name + ' added');
+      openCart();
+    }
+
+    function setQty(id, delta) {
+      if (!cart[id]) return;
+      cart[id].quantity += delta;
+      if (cart[id].quantity <= 0) delete cart[id];
+      saveCart();
+    }
+
+    function renderCart() {
+      const el = document.getElementById('cart-lines');
+      const lines = Object.values(cart);
+      if (!lines.length) {
+        el.innerHTML = '<p class="empty">Your cart is empty.</p>';
+      } else {
+        el.innerHTML = lines.map(l => `
+          <div class="cart-line">
+            <div>
+              <strong>${l.name}</strong>
+              <div class="meta">${money(l.price)} each</div>
+            </div>
+            <div class="qty-row">
+              <button type="button" onclick="setQty('${l.product_id}', -1)">−</button>
+              <span>${l.quantity}</span>
+              <button type="button" onclick="setQty('${l.product_id}', 1)">+</button>
+            </div>
+          </div>`).join('');
+      }
+      document.getElementById('cart-total').textContent = money(cartTotal());
+    }
+
+    function openCart() {
+      document.getElementById('drawer').classList.add('open');
+      document.getElementById('backdrop').classList.add('open');
+      renderCart();
+    }
+
+    function closeCart() {
+      document.getElementById('drawer').classList.remove('open');
+      document.getElementById('backdrop').classList.remove('open');
+    }
+
+    function showView(name) {
+      document.getElementById('view-shop').classList.toggle('active', name === 'shop');
+      document.getElementById('view-order').classList.toggle('active', name === 'order');
+      if (name === 'order' && activeOrderId) startPolling();
+    }
+
+    async function loadProducts() {
+      const grid = document.getElementById('product-grid');
+      try {
+        const r = await fetch(API + '/api/inventory/products');
+        products = await r.json();
+        if (!Array.isArray(products) || !products.length) {
+          grid.innerHTML = '<p class="empty">No products yet. Seed inventory or add some in Admin.</p>';
+          return;
+        }
+        grid.innerHTML = products.map((p, i) => {
+          const avail = p.available ?? (p.stock - (p.reserved || 0));
+          return `
+            <article class="product">
+              <div class="swatch" style="--tone:${TONES[i % TONES.length]}"></div>
+              <h3>${p.name}</h3>
+              <div class="meta"><span>${p.sku}</span><span>${avail} left</span></div>
+              <div class="price">${money(p.price)}</div>
+              <button class="solid" ${avail < 1 ? 'disabled' : ''} onclick="addToCart('${p.id}')">
+                ${avail < 1 ? 'Sold out' : 'Add to cart'}
+              </button>
+            </article>`;
+        }).join('');
+      } catch (e) {
+        grid.innerHTML = '<p class="empty">Could not load products.</p>';
+      }
+    }
+
+    async function ensureAuth(email, name) {
+      if (token) return token;
+      let r = await fetch(API + '/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'harbor-demo', name })
+      });
+      let d = await r.json();
+      if (!r.ok || !d.token) {
+        r = await fetch(API + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: 'harbor-demo' })
+        });
+        d = await r.json();
+      }
+      if (!d.token) throw new Error(d.error || 'auth failed');
+      token = d.token;
+      localStorage.setItem('harbor_token', token);
+      return token;
+    }
+
+    async function checkout(ev) {
+      ev.preventDefault();
+      const lines = Object.values(cart);
+      if (!lines.length) { toast('Cart is empty', true); return; }
+
+      const fd = new FormData(ev.target);
+      const name = fd.get('name');
+      const email = fd.get('email');
+      const notes = JSON.stringify({
+        name,
+        address_line1: fd.get('address_line1'),
+        city: fd.get('city'),
+        postcode: fd.get('postcode')
+      });
+
+      const btn = document.getElementById('checkout-btn');
+      btn.disabled = true;
+      btn.textContent = 'Placing…';
+
+      try {
+        await ensureAuth(email, name);
+        const r = await fetch(API + '/api/orders/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            currency: 'GBP',
+            notes,
+            items: lines.map(l => ({
+              product_id: l.product_id,
+              quantity: l.quantity,
+              price: l.price
+            }))
+          })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'order failed');
+
+        activeOrderId = String(d.id);
+        localStorage.setItem('harbor_order_id', activeOrderId);
+        cart = {};
+        saveCart();
+        closeCart();
+        toast('Order #' + d.id + ' placed');
+        showView('order');
+        renderOrder({ id: d.id, status: d.status || 'pending', total: d.total, currency: 'GBP', items: lines });
+        startPolling();
+      } catch (e) {
+        toast(e.message || 'Checkout failed', true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Place order';
+      }
+    }
+
+    function renderOrder(o) {
+      const idx = FLOW.indexOf(o.status);
+      const steps = FLOW.map((s, i) => {
+        let cls = 'step';
+        if (o.status === 'cancelled') cls += i === 0 ? ' current' : '';
+        else if (i < idx) cls += ' done';
+        else if (i === idx) cls += ' current';
+        return `<span class="${cls}">${s}</span>`;
+      }).join('');
+
+      const items = (typeof o.items === 'string' ? JSON.parse(o.items) : o.items) || [];
+      const itemStr = items.map(i => `${i.product_id || i.name || 'item'} ×${i.quantity}`).join(', ');
+
+      document.getElementById('order-card').innerHTML = `
+        <div class="meta"><span>Order #${o.id}</span><strong>${o.status}</strong></div>
+        <p style="margin-top:0.75rem">${itemStr || '—'}</p>
+        <p style="margin-top:0.35rem"><strong>${money(o.total)}</strong> ${o.currency || 'GBP'}</p>
+        <div class="steps">${o.status === 'cancelled' ? '<span class="step current">cancelled</span>' : steps}</div>
+        <p style="font-size:0.9rem;color:rgba(26,23,20,0.65)">
+          ${o.status === 'pending' ? 'Worker is reserving stock and charging payment…' :
+            o.status === 'confirmed' ? 'Paid. Open Admin and advance to processing → shipped → delivered.' :
+            o.status === 'delivered' ? 'Delivered. Full flow complete.' :
+            o.status === 'cancelled' ? 'Order was cancelled.' :
+            'Fulfillment in progress — status updates live.'}
+        </p>`;
+    }
+
+    async function pollOrder() {
+      if (!activeOrderId || !token) return;
+      try {
+        const r = await fetch(API + '/api/orders/' + activeOrderId, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!r.ok) return;
+        const o = await r.json();
+        renderOrder(o);
+        if (['delivered', 'cancelled'].includes(o.status) && pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      } catch (_) {}
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollOrder();
+      pollTimer = setInterval(pollOrder, 2500);
+    }
+
+    document.getElementById('cart-count').textContent = cartCount();
+    loadProducts();
+    if (activeOrderId && token) {
+      showView('order');
+      startPolling();
+    }
+  </script>
+</body>
+</html>
